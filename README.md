@@ -7,9 +7,9 @@ CookieRun: Kingdom 的資產下載/提取工具（靈感與架構取自
 
 | 階段 | 狀態 |
 |---|---|
-| **Phase 1 — extract**（純離線：XAPK → 解密 → 提取） | ✅ 可用 |
+| **Phase 1 — extract**（純離線：XAPK/IPA → 解密 → 提取） | ✅ 可用 |
 | **Phase 2 — index / search**（資產/cookie 索引） | ✅ 可用 |
-| **Phase 3 — download**（DevPlay CDN 線上更新） | 🚧 未實作（需 DevPlay 登入流程） |
+| **Phase 3 — download**（CDN 全量下載＋解密） | ✅ 可用 |
 
 ## 運作原理
 
@@ -91,9 +91,7 @@ Extracted/
 ## 已知限制
 
 - 2,552 檔中 2,548 個已驗證解出（ZIP 全數 CRC32 命中、UnityFS 全數 UnityPy 解析）。
-  剩 4 檔（`gacha_portrait_cookie0602s02/0661/0668`、`bundle_pass.zson`）為
-  `EncNew`（ChaCha20 scheme），金鑰含伺服器下發的 secret，離線不可得。
-- 線上更新下載（Phase 3）需 DevPlay 登入流程，尚未實作。
+  剩下的 `EncNew`（ChaCha20 scheme）由 Phase 3 的 CDN 管線以 bundle_pass secret 全解。
 
 ## 授權與用途
 
@@ -112,7 +110,7 @@ ck-downloader sync --out CKMirror --type text
 ck-downloader sync --out CKMirror -x /path/to/CookieRun_x.y.z_APKPure.xapk
 ```
 
-GitHub Actions：見 `.github/workflows/sync.yml`（每日自動執行，index 有變更自動 commit）。
+GitHub Actions：`ck-downloader sync` 也可掛進自己的 workflow（index 有變更自動 commit）。
 
 **更新偵測**：`sync` 對 `metadata.zeson` 的 2552 筆 {hash, size} 做指紋比對，
 輸出 `+new / ~changed / -removed`，寫入 `state.json`。實測：7.9.102 → 最新版比對 = 0 差異（同版本）。
@@ -156,7 +154,7 @@ ck-downloader ipa --ipa-file crk.ipa --out Extracted
 
 iOS 版與 Android 用同一套 C# 加密 → 同一個 Legacy 公式直接解。
 
-## 歷史版本批量封存（GitHub Actions）
+## 歷史版本批量封存
 
 App Store 保留 CRK 上架以來的**全部 205 個版本**（2021 → 現在）。
 每個版本 = 當時遊戲內容的完整快照；收集多個版本 = 收回所有被替換掉的
@@ -205,22 +203,11 @@ secrets：`IPATOOL_ACCOUNT`、`IPATOOL_KBSYNC`、`IPATOOL_COOKIES`（都是檔�
 與 `IPATOOL_KEYCHAIN_PASS`（JWE 解鎖密碼，給 `--keychain-passphrase` 用）。
 （本機匯出时用同款 Go 函式庫 byteness/keyring v1.9.0 轉檔，與 ipatool 讀取格式 100% 相容。）
 
-每次執行 = 下載 N 個版本（`workflow_dispatch` 的 `batch_size`）→ 提取該版獨有資產 →
-commit 進 `archive/`。`download_state.json` 記錄進度，中斷可接續（error 也會記，可手動
-刪條目讓某版重試）。
-
-### 檔案說明
-
-- `archive/v<id>/bundles|zip|fmod/` — 新格式版本的獨有資產
-- `archive/v<id>/tex/`、`archive/v<id>/bank/` — 2021 舊格式版本的紋理與音效
-- `archive/manifests/v<id>.json` — 每版完整 manifest（供日後分析）
-- `download_state.json` — 處理進度
-- `seeds/current_hashes.json` — 現行版全部 hash（去重種子）
-- 超過 90MB 的檔案會切成 `.part000/.part001/...`（GitHub 單檔上限 100MB），
-  還原方式：`cat 檔名.part* > 檔名`
-
 > 注意：/tmp 常見是 RAM 磁碟（tmpfs），舊格式解 Unity 需 ~1.6GB 暫存；
 > 本機跑請設 `WORK_DIR` 指到實體磁碟，例如 `WORK_DIR=~/ck-work`。
+（本節的歷史版本批量封存與對應的 `archive/` 產物已在公開版移除——
+`scripts/batch_download.py` 仍保留，可自行跑；`sync.yml`／`download-old.yml`
+兩個 workflow 亦已移除，需要時從 git 歷史或自行重建。）
 
 
 ## CDN 下載（Phase 3，2026-11-22 全鏈打通 ✅）
