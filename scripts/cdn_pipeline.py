@@ -132,7 +132,7 @@ def sniff(pt):
     if pt[:8] == b'UnityFS\x00' or pt[:7] == b'UnityFS': return 'unityfs'
     if pt[:4] == b'PK\x03\x04': return 'zip'
     if pt[:4] in (b'RIFF', b'FSB5', b'OggS'): return pt[:4].decode().lower()
-    if pt[:2] in (b'{"', b'[{'):
+    if pt[:2] in (b'{"', b'[{', b'{\n', b'[\n'):
         try:
             json.loads(pt); return 'json'
         except Exception: return None
@@ -209,7 +209,9 @@ def main():
         if sha1u(data) != e['hash']:
             print(f'  HASH MISMATCH {key}')
         base = key.rsplit('/', 1)[-1]
+        # legacy gpart = 完整檔名（含副檔名）；v2 name = 去副檔名 stem
         stem = base.rsplit('.', 1)[0] if '.' in base else base
+        gpart = base
         # 先試原始資料（部分 CDN 檔案不加密，如 *_video）
         pt = None
         kind = sniff(data)
@@ -226,7 +228,7 @@ def main():
                 if kind:
                     pt = cand; break
         if pt is None:
-            cand = dec_legacy(data, stem)
+            cand = dec_legacy(data, gpart)
             kind = sniff(cand)
             if kind: pt = cand
         if pt is None:
